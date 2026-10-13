@@ -9,6 +9,9 @@ export async function POST(req: Request) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return Response.json({ reply: "مفتاح جيميناي مش موجود على السيرفر" }, { status: 500 });
+    }
 
     const geminiRes = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
@@ -16,7 +19,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-goog-api-key": apiKey!,
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `انت فيلسوف مصري اسمه الدميري، بترد بالعامية المصرية باسلوب عميق وساخر وحكيم. السؤال: ${message}` }] }],
@@ -25,9 +28,15 @@ export async function POST(req: Request) {
     );
 
     const data = await geminiRes.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "مفيش رد من جيميناي";
 
-    // حفظ مع الـ user_id
+    // لو جوجل رجعت ايرور نطبعه
+    if (!geminiRes.ok || data.error) {
+      console.error("Gemini Error Full:", JSON.stringify(data));
+      return Response.json({ reply: `ايرور من جوجل: ${data.error?.message || JSON.stringify(data)}` });
+    }
+
+    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "نفذ رصيد الطلاب لليوم حاول في وقت لاحق";
+
     if (user_id) {
       await supabase.from("chats").insert({
         question: message,
@@ -44,7 +53,7 @@ export async function POST(req: Request) {
     return Response.json({ reply: replyText });
 
   } catch (err: any) {
-    console.error(err);
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error("Catch Error:", err);
+    return Response.json({ reply: `ايرور داخلي: ${err.message}` }, { status: 500 });
   }
 }
