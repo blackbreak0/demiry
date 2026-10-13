@@ -6,48 +6,46 @@ export async function POST(req: Request) {
     if (!message) return Response.json({ error: "No message" }, { status: 400 });
 
     const apiKey = process.env.GEMINI_API_KEY;
+
+    // الموديلات الصحيحة لمفاتيح AQ الجديدة
     const modelsToTry = [
-      "gemini-3-flash-preview",
-      "gemini-2.0-flash",
-      "gemini-1.5-flash"
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-3.5-flash",
+      "gemini-3.8-flash"
     ];
 
     let replyText = "";
     let lastError = "";
 
     for (const model of modelsToTry) {
-      try {
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": apiKey as string,
-            },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: `انت فيلسوف مصري اسمه الدميري، بترد بالعامية المصرية باسلوب عميق وساخر وحكيم. السؤال: ${message}` }] }],
-            }),
-          }
-        );
-
-        const data = await geminiRes.json();
-
-        if (geminiRes.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text;
-          console.log(`Success with model: ${model}`);
-          break; // نجح، اطلع من اللوب
-        } else {
-          lastError = data.error?.message || "No candidate";
-          console.log(`Model ${model} failed: ${lastError}`);
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey as string,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `انت فيلسوف مصري اسمه الدميري، بترد بالعامية المصرية باسلوب عميق وساخر وحكيم. السؤال: ${message}` }] }],
+          }),
         }
-      } catch (e: any) {
-        lastError = e.message;
+      );
+
+      const data = await geminiRes.json();
+
+      if (geminiRes.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        replyText = data.candidates[0].content.parts[0].text;
+        break;
+      } else {
+        lastError = data.error?.message || JSON.stringify(data);
+        console.log(`Model ${model} failed: ${lastError}`);
       }
     }
 
     if (!replyText) {
-      replyText = `الدميري مشغول دلوقتي، الموديلات كلها عليها ضغط: ${lastError}`;
+      replyText = `الدميري مشغول: ${lastError}`;
     }
 
     await supabase.from("chats").insert({
@@ -60,6 +58,6 @@ export async function POST(req: Request) {
 
   } catch (err: any) {
     console.error(err);
-    return Response.json({ reply: "حصل ايرور داخلي، حاول تاني" });
+    return Response.json({ reply: "حصل ايرور داخلي" });
   }
 }
